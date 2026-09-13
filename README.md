@@ -2,14 +2,16 @@
 
 Студия сайтов с ИИ (Groq): пишете HTML сами или описываете страницу словами — сразу видите превью.
 
-## Запуск
+**Сайт:** https://mraterzix.github.io/lumina/
+
+## Запуск локально
 
 ```bash
 npm install
 npm run dev
 ```
 
-Откройте интерфейс, нажмите шестерёнку и вставьте ключ Groq (`gsk_…`) с [console.groq.com/keys](https://console.groq.com/keys).
+На сайте нажмите шестерёнку и вставьте ключ Groq (`gsk_…`) с [console.groq.com/keys](https://console.groq.com/keys).
 
 Ключ хранится только в браузере (`localStorage`) и уходит на `api.groq.com`.
 

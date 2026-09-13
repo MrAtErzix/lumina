@@ -82,11 +82,17 @@ export function buildMessages(project, extraUser) {
   return messages
 }
 
-const GROQ_PATHS = ['/groq/chat/completions', 'https://api.groq.com/openai/v1/chat/completions']
+function groqEndpoints() {
+  const direct = 'https://api.groq.com/openai/v1/chat/completions'
+  if (typeof location !== 'undefined' && /github\.io$/i.test(location.hostname)) {
+    return [direct]
+  }
+  return ['/groq/chat/completions', direct]
+}
 
 async function groqFetch(body, { apiKey, signal }) {
   let lastErr
-  for (const url of GROQ_PATHS) {
+  for (const url of groqEndpoints()) {
     try {
       const res = await fetch(url, {
         method: 'POST',
