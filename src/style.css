@@ -648,12 +648,14 @@ body.resizing iframe { pointer-events: none; }
 }
 .holo-wrap {
   position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 240px;
-  height: 150px;
+  left: 0;
+  top: 0;
+  width: 180px;
+  height: 180px;
   transform-style: preserve-3d;
-  animation: holo-fly 26s linear infinite;
+  pointer-events: auto;
+  cursor: grab;
+  will-change: transform;
 }
 .holo-box {
   width: 100%;
@@ -666,50 +668,33 @@ body.resizing iframe { pointer-events: none; }
   position: absolute;
   left: 50%;
   top: 50%;
+  width: 180px;
+  height: 180px;
+  margin: -90px 0 0 -90px;
   border: 1.5px solid rgba(90, 170, 255, 0.9);
   background: rgba(20, 70, 255, 0.035);
   box-shadow:
     0 0 18px rgba(60, 140, 255, 0.45),
     inset 0 0 24px rgba(80, 160, 255, 0.08);
 }
-.hf-front,
-.hf-back {
-  width: 240px;
-  height: 150px;
-  margin: -75px 0 0 -120px;
-}
-.hf-front { transform: translateZ(48px); }
-.hf-back { transform: rotateY(180deg) translateZ(48px); }
-.hf-right,
-.hf-left {
-  width: 96px;
-  height: 150px;
-  margin: -75px 0 0 -48px;
-}
-.hf-right { transform: rotateY(90deg) translateZ(120px); }
-.hf-left { transform: rotateY(-90deg) translateZ(120px); }
-.hf-top,
-.hf-bottom {
-  width: 240px;
-  height: 96px;
-  margin: -48px 0 0 -120px;
-}
-.hf-top { transform: rotateX(90deg) translateZ(75px); }
-.hf-bottom { transform: rotateX(-90deg) translateZ(75px); }
+.hf-front { transform: translateZ(90px); }
+.hf-back { transform: rotateY(180deg) translateZ(90px); }
+.hf-right { transform: rotateY(90deg) translateZ(90px); }
+.hf-left { transform: rotateY(-90deg) translateZ(90px); }
+.hf-top { transform: rotateX(90deg) translateZ(90px); }
+.hf-bottom { transform: rotateX(-90deg) translateZ(90px); }
 
 @keyframes holo-spin {
   from { transform: rotateX(-22deg) rotateY(0deg) rotateZ(12deg); }
   to { transform: rotateX(-22deg) rotateY(360deg) rotateZ(12deg); }
 }
-@keyframes holo-fly {
-  0%   { transform: translate3d(-38vw, -18vh, 0); }
-  20%  { transform: translate3d(28vw, -30vh, 80px); }
-  40%  { transform: translate3d(36vw, 10vh, -40px); }
-  60%  { transform: translate3d(8vw, 28vh, 60px); }
-  80%  { transform: translate3d(-32vw, 16vh, -20px); }
-  100% { transform: translate3d(-38vw, -18vh, 0); }
+body.on-studio .holo { opacity: 0; pointer-events: none; }
+.trail-canvas {
+  position: fixed;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
 }
-body.on-studio .holo { opacity: 0; }
 
 .grain { z-index: 3; opacity: 0.07; }
 
