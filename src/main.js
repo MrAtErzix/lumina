@@ -1,4 +1,3 @@
-import { createEditor } from './editor.js'
 import {
   loadSettings,
   saveSettings,
@@ -460,7 +459,7 @@ function shell() {
         <span class="brand-text">Lumina</span>
       </div>
       <div class="top-center">
-        ${onHome ? `<span class="top-label">Каталог</span>` : p ? `<input class="proj-name" id="proj-name" value="${escapeHtml(p.name)}" spellcheck="false" />` : ''}
+        ${onHome ? '' : p ? `<input class="proj-name" id="proj-name" value="${escapeHtml(p.name)}" spellcheck="false" />` : ''}
       </div>
       <div class="top-actions">
         ${onHome ? `
@@ -487,42 +486,46 @@ function homeView() {
   const items = catalogProjects()
   return `
     <main class="home">
-      <div class="home-inner">
-        <p class="eyebrow">Студия сайтов с Groq</p>
-        <h1>Напишите сайт.<br><em>Или откройте из каталога.</em></h1>
-        <p class="lede">Опишите страницу — ИИ соберёт HTML. Сохраните сессию в каталог и вернитесь к ней с главного экрана.</p>
-        ${needsKey() ? `<button class="banner" data-act="settings">${icon('key')} Сначала вставьте API-ключ Groq в настройках</button>` : ''}
-        <form class="welcome-form" id="welcome-form">
-          <textarea id="welcome-input" rows="3" placeholder="Например: лендинг кофейни на ОбьГЭС, тёплый хлеб, меню…"></textarea>
-          <div class="welcome-actions">
-            <button class="btn ghost big" type="button" data-act="blank">${icon('code')} Писать самому</button>
-            <button class="btn primary big" type="submit">${icon('spark')} Создать с ИИ</button>
+      <div class="home-hero">
+        <div class="hero-glass">
+          <p class="eyebrow">Студия сайтов с Groq</p>
+          <h1>Напишите сайт.<br><em>Или попросите ИИ.</em></h1>
+          <p class="lede">Опишите страницу своими словами — Lumina соберёт полный HTML, CSS и JS. Код можно править руками и сразу смотреть превью.</p>
+          ${needsKey() ? `<button class="banner" data-act="settings">${icon('key')} Сначала вставьте API-ключ Groq в настройках</button>` : ''}
+          <form class="welcome-form" id="welcome-form">
+            <textarea id="welcome-input" rows="3" placeholder="Например: лендинг кофейни на ОбьГЭС, тёмное дерево, меню, запись на каппинг…"></textarea>
+            <div class="welcome-actions">
+              <button class="btn ghost big" type="button" data-act="blank">${icon('code')} Писать самому</button>
+              <button class="btn primary big" type="submit">${icon('spark')} Создать с ИИ</button>
+            </div>
+          </form>
+          <div class="chips">
+            ${EXAMPLES.map((e, i) => `<button class="chip" data-ex="${i}">${escapeHtml(e.t)}</button>`).join('')}
           </div>
-        </form>
-        <div class="chips">
-          ${EXAMPLES.map((e, i) => `<button class="chip" data-ex="${i}">${escapeHtml(e.t)}</button>`).join('')}
         </div>
-        <section class="catalog">
+      </div>
+      <section class="catalog">
+        <div class="catalog-inner">
           <div class="catalog-head">
             <h2>${icon('folder')} Каталог проектов</h2>
             <span class="muted">${items.length ? items.length : 'пусто'}</span>
           </div>
           ${items.length ? `<div class="grid">${items.map(projectCard).join('')}</div>` : `<p class="catalog-empty">Пока пусто. Создайте сайт и нажмите «Сохранить» — он появится здесь.</p>`}
-        </section>
-      </div>
+        </div>
+      </section>
     </main>
   `
 }
 
 function projectCard(p) {
-  const chars = (p.html || '').length
+  const letter = (p.name || '?').trim().charAt(0).toUpperCase()
   return `
     <article class="pcard">
       <button type="button" class="pcard-hit" data-open="${p.id}" title="Открыть">
-        <div class="pcard-thumb" data-thumb="${p.id}"></div>
+        <div class="pcard-thumb"><span>${escapeHtml(letter)}</span></div>
         <div class="pcard-body">
           <strong>${escapeHtml(p.name || 'Без названия')}</strong>
-          <span>${fmtDate(p.updatedAt)} · ${chars.toLocaleString('ru-RU')} симв.</span>
+          <span>${fmtDate(p.updatedAt)}</span>
         </div>
       </button>
       <button type="button" class="icon-btn sm pcard-del" data-del="${p.id}" title="Удалить">${icon('trash')}</button>
@@ -701,14 +704,18 @@ function projectsDrawer() {
   `
 }
 
-function mountEditor() {
+let editorMod = null
+
+async function mountEditor() {
   const root = document.getElementById('editor-root')
   if (!root) {
     state.editor = null
     return
   }
+  if (!editorMod) editorMod = await import('./editor.js')
+  if (!document.getElementById('editor-root')) return
   const p = current()
-  state.editor = createEditor(root, {
+  state.editor = editorMod.createEditor(root, {
     doc: p?.html || '',
     onChange: (value) => {
       const proj = current()
@@ -747,26 +754,10 @@ function bindResizer() {
   handle.addEventListener('pointercancel', stop)
 }
 
-function mountThumbs() {
-  document.querySelectorAll('[data-thumb]').forEach((el) => {
-    const p = state.projects.find((x) => x.id === el.dataset.thumb)
-    el.innerHTML = ''
-    if (!p?.html) {
-      el.innerHTML = '<div class="pcard-ph">Нет превью</div>'
-      return
-    }
-    const iframe = document.createElement('iframe')
-    iframe.setAttribute('sandbox', '')
-    iframe.tabIndex = -1
-    iframe.srcdoc = String(p.html).replace(/<script[\s\S]*?<\/script>/gi, '')
-    el.appendChild(iframe)
-  })
-}
-
 function afterRender() {
+  document.body.classList.toggle('on-studio', state.screen === 'studio')
   mountEditor()
   bindResizer()
-  mountThumbs()
   const log = document.getElementById('chat-log')
   if (log) log.scrollTop = log.scrollHeight
   const chat = document.getElementById('chat-input')
