@@ -546,7 +546,7 @@ function settingsModal() {
           <h2 id="set-title">${icon('key')} Groq API</h2>
           <button class="icon-btn" data-act="close-settings">${icon('x')}</button>
         </div>
-        <p class="modal-lead">Ключ хранится только в этом браузере и уходит на api.groq.com. Создайте его на <a href="https://console.groq.com/keys" target="_blank" rel="noopener">console.groq.com/keys</a>.</p>
+        <p class="modal-lead">Ключ хранится только в этом браузере и уходит на api.groq.com. Создайте его на <a href="https://console.groq.com/keys" target="_blank" rel="noopener">console.groq.com/keys</a>. Llama 3.3 Groq снял — по умолчанию <b>GPT-OSS 120B</b>.</p>
         <label class="field">
           <span>API-ключ</span>
           <input id="set-key" type="password" autocomplete="off" placeholder="gsk_…" value="${escapeHtml(s.apiKey)}" />
