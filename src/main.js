@@ -937,3 +937,4 @@ document.addEventListener('keydown', (e) => {
 
 saveSettings(state.settings)
 render()
+startFx()

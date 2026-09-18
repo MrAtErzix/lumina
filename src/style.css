@@ -648,10 +648,11 @@ body.resizing iframe { pointer-events: none; }
 }
 .holo-wrap {
   position: absolute;
-  left: 0;
-  top: 0;
+  left: 72%;
+  top: 38%;
   width: 180px;
   height: 180px;
+  margin: -90px 0 0 -90px;
   transform-style: preserve-3d;
   pointer-events: auto;
   cursor: grab;
@@ -662,6 +663,7 @@ body.resizing iframe { pointer-events: none; }
   height: 100%;
   position: relative;
   transform-style: preserve-3d;
+  transform-origin: 50% 50%;
   animation: holo-spin 16s linear infinite;
 }
 .hf {
