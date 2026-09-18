@@ -8,7 +8,17 @@ import {
   saveCurrentId,
   createProject,
 } from './storage.js'
-import { MODELS, extractHtml, commentaryOf, buildMessages, chatStream, testKey } from './groq.js'
+import {
+  MODELS,
+  DEFAULT_MODEL,
+  extractHtml,
+  commentaryOf,
+  buildMessages,
+  chatStream,
+  testKey,
+  isDeadModel,
+  isMissingModelError,
+} from './groq.js'
 
 const EXAMPLES = [
   { t: 'Пекарня', p: 'Лендинг ремесленной пекарни «Два зерна» в Новосибирске: тёплый хлеб, витрина, предзаказ, история пекаря. Уютный редакционный стиль, кремовые тона, крупная типографика.' },
@@ -261,7 +271,8 @@ function switchProject(id) {
 }
 
 function activeModel() {
-  return state.settings.customModel.trim() || state.settings.model
+  const id = state.settings.customModel.trim() || state.settings.model
+  return isDeadModel(id) ? DEFAULT_MODEL : id
 }
 
 function needsKey() {
@@ -809,7 +820,5 @@ document.addEventListener('keydown', (e) => {
 })
 
 ensureProject()
-if (!current()?.html && !current()?.messages?.length) {
-  /* welcome uses current empty project */
-}
+saveSettings(state.settings)
 render()

@@ -1,12 +1,35 @@
+export const DEFAULT_MODEL = 'openai/gpt-oss-120b'
+
+export const DEAD_MODELS = new Set([
+  'llama-3.3-70b-versatile',
+  'llama-3.1-8b-instant',
+  'llama3-70b-8192',
+  'llama3-8b-8192',
+  'qwen/qwen3-32b',
+  'qwen-qwq-32b',
+  'moonshotai/kimi-k2-instruct-0905',
+  'moonshotai/kimi-k2-instruct',
+  'meta-llama/llama-4-scout-17b-16e-instruct',
+  'meta-llama/llama-4-maverick-17b-128e-instruct',
+])
+
 export const MODELS = [
-  { id: 'llama-3.3-70b-versatile', name: 'Llama 3.3 70B', hint: 'Качество' },
-  { id: 'llama-3.1-8b-instant', name: 'Llama 3.1 8B', hint: 'Скорость' },
-  { id: 'openai/gpt-oss-120b', name: 'GPT-OSS 120B', hint: 'Код' },
-  { id: 'openai/gpt-oss-20b', name: 'GPT-OSS 20B', hint: 'Быстрый код' },
-  { id: 'qwen/qwen3-32b', name: 'Qwen 3 32B', hint: 'Баланс' },
-  { id: 'moonshotai/kimi-k2-instruct-0905', name: 'Kimi K2', hint: 'Контекст' },
-  { id: 'meta-llama/llama-4-scout-17b-16e-instruct', name: 'Llama 4 Scout', hint: 'Llama 4' },
+  { id: 'openai/gpt-oss-120b', name: 'GPT-OSS 120B', hint: 'Качество' },
+  { id: 'openai/gpt-oss-20b', name: 'GPT-OSS 20B', hint: 'Скорость' },
+  { id: 'qwen/qwen3.8-27b', name: 'Qwen 3.8 27B', hint: 'Баланс' },
+  { id: 'qwen/qwen3.6-27b', name: 'Qwen 3.6 27B', hint: 'Альтернатива' },
+  { id: 'groq/compound', name: 'Groq Compound', hint: 'Агент' },
+  { id: 'minimaxai/minimax-m2.7', name: 'MiniMax M2.7', hint: 'Preview' },
 ]
+
+export function isDeadModel(id) {
+  return !id || DEAD_MODELS.has(id)
+}
+
+export function isMissingModelError(err) {
+  const msg = String(err?.message || err || '')
+  return /does not exist|do not have access|model_not_found|invalid model/i.test(msg)
+}
 
 export const SYSTEM_PROMPT = `Ты — ведущий арт-директор и фронтенд-инженер студии Lumina. Ты создаёшь законченные одностраничные сайты: один HTML-файл, CSS и JS внутри.
 
@@ -119,6 +142,9 @@ function failFromResponse(res, jsonOrText) {
   const detail = typeof jsonOrText === 'string' ? jsonOrText : jsonOrText?.error?.message || JSON.stringify(jsonOrText)
   if (res.status === 401) return new Error('Неверный API-ключ Groq. Проверьте ключ в настройках.')
   if (res.status === 429) return new Error('Слишком много запросов. Подождите немного и попробуйте снова.')
+  if (/does not exist|do not have access|model_not_found/i.test(String(detail || ''))) {
+    return new Error('Эта модель Groq больше недоступна. Откройте настройки и выберите GPT-OSS 120B.')
+  }
   return new Error(detail || `Ошибка Groq (${res.status})`)
 }
 

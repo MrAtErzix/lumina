@@ -2,16 +2,21 @@ const SETTINGS_KEY = 'lumina.settings.v1'
 const PROJECTS_KEY = 'lumina.projects.v1'
 const CURRENT_KEY = 'lumina.current.v1'
 
+import { DEFAULT_MODEL, isDeadModel } from './groq.js'
+
 const defaultSettings = () => ({
   apiKey: '',
-  model: 'llama-3.3-70b-versatile',
+  model: DEFAULT_MODEL,
   autoApply: true,
   customModel: '',
 })
 
 export function loadSettings() {
   try {
-    return { ...defaultSettings(), ...JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}') }
+    const s = { ...defaultSettings(), ...JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}') }
+    if (isDeadModel(s.model)) s.model = DEFAULT_MODEL
+    if (isDeadModel(s.customModel)) s.customModel = ''
+    return s
   } catch {
     return defaultSettings()
   }
