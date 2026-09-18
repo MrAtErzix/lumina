@@ -93,6 +93,13 @@ svg { width: 18px; height: 18px; display: block; }
   font-size: 18px;
 }
 .top-center { flex: 1; display: flex; justify-content: center; }
+.top-label {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
 .proj-name {
   background: transparent;
   border: 1px solid transparent;

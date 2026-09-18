@@ -85,6 +85,9 @@ const ICONS = {
   key: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="12" r="4"/><path d="M12 12h9m-4-3v6"/></svg>`,
   trash: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 7h14M10 7V5h4v2m-7 0 1 13h8l1-13"/></svg>`,
   check: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m5 12 5 5 9-10"/></svg>`,
+  home: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 11 12 4l8 7"/><path d="M6 10.5V20h12v-9.5"/></svg>`,
+  save: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 5h11l3 3v11H5V5Z"/><path d="M8 5v5h8V5M8 19v-6h8v6"/></svg>`,
+  upload: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 16V6m0 0 4.5 4.5M12 6 7.5 10.5M5 20h14"/></svg>`,
 }
 
 const appEl = document.getElementById('app')
@@ -96,6 +99,7 @@ const state = {
   view: 'split',
   device: 'desktop',
   chatOpen: true,
+  screen: 'home',
   settingsOpen: false,
   projectsOpen: false,
   streaming: false,
@@ -149,17 +153,86 @@ function toast(msg, kind = 'ok') {
   state.toastTimer = setTimeout(() => el.classList.remove('show'), 2800)
 }
 
+function catalogProjects() {
+  return [...state.projects]
+    .filter((p) => p.html || (p.messages && p.messages.length))
+    .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
+}
+
+function startFreshProject(name = 'Новый сайт') {
+  const p = createProject({ name })
+  state.projects.unshift(p)
+  state.currentId = p.id
+  persist()
+  return p
+}
+
 function ensureProject() {
-  if (!state.projects.length) {
-    const p = createProject({ name: 'Мой сайт' })
-    state.projects.unshift(p)
-    state.currentId = p.id
-    persist()
+  if (!current()) startFreshProject()
+}
+
+function goHome() {
+  persist()
+  state.screen = 'home'
+  state.projectsOpen = false
+  render()
+}
+
+function saveToCatalog() {
+  ensureProject()
+  const p = current()
+  if (!p) return
+  const nameEl = document.getElementById('proj-name')
+  if (nameEl) p.name = nameEl.value.trim() || p.name
+  if (!p.name || p.name === 'Новый сайт') {
+    const typed = window.prompt('Название проекта в каталоге', p.name || 'Мой сайт')
+    if (typed === null) return
+    p.name = typed.trim() || 'Мой сайт'
   }
-  if (!current()) {
-    state.currentId = state.projects[0].id
-    persist()
+  touch(p)
+  persist()
+  toast(`Сохранено в каталог: ${p.name}`)
+}
+
+function openProject(id) {
+  const p = state.projects.find((x) => x.id === id)
+  if (!p) return toast('Проект не найден', 'warn')
+  state.currentId = id
+  state.screen = 'studio'
+  state.projectsOpen = false
+  persist()
+  render()
+}
+
+function importProjectFile(file) {
+  if (!file) return
+  const reader = new FileReader()
+  reader.onload = () => {
+    try {
+      const text = String(reader.result || '')
+      let p
+      if (/\.json$/i.test(file.name) || text.trim().startsWith('{')) {
+        const data = JSON.parse(text)
+        p = createProject({
+          name: data.name || file.name.replace(/\.json$/i, ''),
+          html: data.html || '',
+          messages: Array.isArray(data.messages) ? data.messages : [],
+        })
+      } else {
+        p = createProject({
+          name: file.name.replace(/\.html?$/i, '') || 'Импорт',
+          html: text,
+        })
+      }
+      state.projects.unshift(p)
+      persist()
+      toast(`В каталоге: ${p.name}`)
+      render()
+    } catch {
+      toast('Не удалось прочитать файл', 'err')
+    }
   }
+  reader.readAsText(file)
 }
 
 function setHtml(html, { snapshot = true } = {}) {
@@ -246,11 +319,10 @@ function undoHtml() {
 }
 
 function newProject() {
-  const p = createProject({ name: 'Новый сайт' })
-  state.projects.unshift(p)
-  state.currentId = p.id
-  persist()
+  startFreshProject()
+  state.screen = 'studio'
   state.projectsOpen = false
+  persist()
   render()
 }
 
@@ -258,16 +330,13 @@ function deleteProject(id) {
   const i = state.projects.findIndex((x) => x.id === id)
   if (i < 0) return
   state.projects.splice(i, 1)
-  if (state.currentId === id) state.currentId = state.projects[0]?.id || null
+  if (state.currentId === id) state.currentId = null
   persist()
   render()
 }
 
 function switchProject(id) {
-  state.currentId = id
-  persist()
-  state.projectsOpen = false
-  render()
+  openProject(id)
 }
 
 function activeModel() {
@@ -288,9 +357,15 @@ async function sendPrompt(text, { fromWelcome = false } = {}) {
     toast('Добавьте API-ключ Groq', 'warn')
     return
   }
-  ensureProject()
-  const p = current()
   if (state.streaming) return
+  if (fromWelcome || state.screen === 'home') {
+    const guess = prompt.split(/[.!?\n]/)[0].slice(0, 42)
+    startFreshProject(guess.length > 3 ? guess : 'Новый сайт')
+    state.screen = 'studio'
+  } else {
+    ensureProject()
+  }
+  const p = current()
 
   p.messages.push({ role: 'user', content: prompt, at: Date.now() })
   const assistant = { role: 'assistant', content: '', at: Date.now(), pending: true }
@@ -298,8 +373,7 @@ async function sendPrompt(text, { fromWelcome = false } = {}) {
   touch(p)
   persist()
   state.streaming = true
-  if (fromWelcome) render()
-  else paintChat()
+  render()
 
   const controller = new AbortController()
   state.abort = controller
@@ -377,8 +451,7 @@ function autosize(el) {
 
 function shell() {
   const p = current()
-  const hasSite = Boolean(p?.html)
-  const showWelcome = !hasSite && !(p?.messages?.length)
+  const onHome = state.screen === 'home'
 
   return `
     <header class="topbar">
@@ -387,34 +460,40 @@ function shell() {
         <span class="brand-text">Lumina</span>
       </div>
       <div class="top-center">
-        ${p ? `<input class="proj-name" id="proj-name" value="${escapeHtml(p.name)}" spellcheck="false" />` : ''}
+        ${onHome ? `<span class="top-label">Каталог</span>` : p ? `<input class="proj-name" id="proj-name" value="${escapeHtml(p.name)}" spellcheck="false" />` : ''}
       </div>
       <div class="top-actions">
-        <button class="icon-btn" data-act="projects" title="Проекты">${icon('folder')}</button>
-        <button class="icon-btn" data-act="undo" title="Откатить">${icon('undo')}</button>
-        <button class="icon-btn" data-act="copy" title="Копировать код">${icon('copy')}</button>
-        <button class="icon-btn" data-act="open" title="Открыть в новой вкладке">${icon('external')}</button>
-        <button class="btn ghost" data-act="download">${icon('download')}<span>Экспорт</span></button>
+        ${onHome ? `
+          <button class="btn ghost" data-act="import">${icon('upload')}<span>Загрузить</span></button>
+          <input id="import-file" type="file" accept=".html,.htm,.json" hidden />
+        ` : `
+          <button class="btn primary" data-act="save">${icon('save')}<span>Сохранить</span></button>
+          <button class="btn ghost" data-act="home">${icon('home')}<span>На главную</span></button>
+          <button class="icon-btn" data-act="undo" title="Откатить">${icon('undo')}</button>
+          <button class="icon-btn" data-act="copy" title="Копировать код">${icon('copy')}</button>
+          <button class="icon-btn" data-act="open" title="Открыть в новой вкладке">${icon('external')}</button>
+          <button class="btn ghost" data-act="download">${icon('download')}<span>Экспорт</span></button>
+        `}
         <button class="icon-btn ${needsKey() ? 'warn-dot' : ''}" data-act="settings" title="Настройки">${icon('gear')}</button>
       </div>
     </header>
 
-    ${showWelcome ? welcomeView() : studioView()}
+    ${onHome ? homeView() : studioView()}
     ${state.settingsOpen ? settingsModal() : ''}
-    ${state.projectsOpen ? projectsDrawer() : ''}
   `
 }
 
-function welcomeView() {
+function homeView() {
+  const items = catalogProjects()
   return `
-    <main class="welcome">
-      <div class="welcome-inner">
+    <main class="home">
+      <div class="home-inner">
         <p class="eyebrow">Студия сайтов с Groq</p>
-        <h1>Напишите сайт.<br><em>Или попросите ИИ.</em></h1>
-        <p class="lede">Опишите страницу своими словами — Lumina соберёт полный HTML, CSS и JS. Код можно править руками и сразу смотреть превью.</p>
+        <h1>Напишите сайт.<br><em>Или откройте из каталога.</em></h1>
+        <p class="lede">Опишите страницу — ИИ соберёт HTML. Сохраните сессию в каталог и вернитесь к ней с главного экрана.</p>
         ${needsKey() ? `<button class="banner" data-act="settings">${icon('key')} Сначала вставьте API-ключ Groq в настройках</button>` : ''}
         <form class="welcome-form" id="welcome-form">
-          <textarea id="welcome-input" rows="3" placeholder="Например: лендинг кофейни на ОбьГЭС, тёмное дерево, меню, запись на каппинг…"></textarea>
+          <textarea id="welcome-input" rows="3" placeholder="Например: лендинг кофейни на ОбьГЭС, тёплый хлеб, меню…"></textarea>
           <div class="welcome-actions">
             <button class="btn ghost big" type="button" data-act="blank">${icon('code')} Писать самому</button>
             <button class="btn primary big" type="submit">${icon('spark')} Создать с ИИ</button>
@@ -423,8 +502,31 @@ function welcomeView() {
         <div class="chips">
           ${EXAMPLES.map((e, i) => `<button class="chip" data-ex="${i}">${escapeHtml(e.t)}</button>`).join('')}
         </div>
+        <section class="catalog">
+          <div class="catalog-head">
+            <h2>${icon('folder')} Каталог проектов</h2>
+            <span class="muted">${items.length ? items.length : 'пусто'}</span>
+          </div>
+          ${items.length ? `<div class="grid">${items.map(projectCard).join('')}</div>` : `<p class="catalog-empty">Пока пусто. Создайте сайт и нажмите «Сохранить» — он появится здесь.</p>`}
+        </section>
       </div>
     </main>
+  `
+}
+
+function projectCard(p) {
+  const chars = (p.html || '').length
+  return `
+    <article class="pcard">
+      <button type="button" class="pcard-hit" data-open="${p.id}" title="Открыть">
+        <div class="pcard-thumb" data-thumb="${p.id}"></div>
+        <div class="pcard-body">
+          <strong>${escapeHtml(p.name || 'Без названия')}</strong>
+          <span>${fmtDate(p.updatedAt)} · ${chars.toLocaleString('ru-RU')} симв.</span>
+        </div>
+      </button>
+      <button type="button" class="icon-btn sm pcard-del" data-del="${p.id}" title="Удалить">${icon('trash')}</button>
+    </article>
   `
 }
 
@@ -645,15 +747,38 @@ function bindResizer() {
   handle.addEventListener('pointercancel', stop)
 }
 
+function mountThumbs() {
+  document.querySelectorAll('[data-thumb]').forEach((el) => {
+    const p = state.projects.find((x) => x.id === el.dataset.thumb)
+    el.innerHTML = ''
+    if (!p?.html) {
+      el.innerHTML = '<div class="pcard-ph">Нет превью</div>'
+      return
+    }
+    const iframe = document.createElement('iframe')
+    iframe.setAttribute('sandbox', '')
+    iframe.tabIndex = -1
+    iframe.srcdoc = String(p.html).replace(/<script[\s\S]*?<\/script>/gi, '')
+    el.appendChild(iframe)
+  })
+}
+
 function afterRender() {
   mountEditor()
   bindResizer()
+  mountThumbs()
   const log = document.getElementById('chat-log')
   if (log) log.scrollTop = log.scrollHeight
   const chat = document.getElementById('chat-input')
   const welcome = document.getElementById('welcome-input')
   chat?.addEventListener('input', () => autosize(chat))
   welcome?.focus()
+  const file = document.getElementById('import-file')
+  file?.addEventListener('change', (e) => {
+    const f = e.target.files && e.target.files[0]
+    e.target.value = ''
+    if (f) importProjectFile(f)
+  })
 }
 
 function render() {
@@ -691,12 +816,10 @@ appEl.addEventListener('click', (e) => {
     state.settingsOpen = false
     render()
     toast('Настройки сохранены')
-  } else if (act === 'projects') {
-    state.projectsOpen = true
-    render()
-  } else if (act === 'close-projects') {
-    state.projectsOpen = false
-    render()
+  } else if (act === 'save') {
+    saveToCatalog()
+  } else if (act === 'import') {
+    document.getElementById('import-file')?.click()
   } else if (act === 'new-project') {
     newProject()
   } else if (act === 'download') {
@@ -713,9 +836,10 @@ appEl.addEventListener('click', (e) => {
   } else if (act === 'stop') {
     stopStream()
   } else if (act === 'home') {
-    /* stay */
+    goHome()
   } else if (act === 'blank') {
-    ensureProject()
+    startFreshProject('Мой сайт')
+    state.screen = 'studio'
     setHtml(BLANK_HTML, { snapshot: false })
     render()
   }
@@ -811,7 +935,7 @@ document.addEventListener('click', async (e) => {
 document.addEventListener('keydown', (e) => {
   if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
     e.preventDefault()
-    downloadHtml()
+    if (state.screen === 'studio') saveToCatalog()
   }
   if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'e') {
     e.preventDefault()
@@ -819,6 +943,5 @@ document.addEventListener('keydown', (e) => {
   }
 })
 
-ensureProject()
 saveSettings(state.settings)
 render()
