@@ -120,6 +120,41 @@ svg { width: 18px; height: 18px; display: block; }
   background: var(--elev);
 }
 .top-actions { display: flex; align-items: center; gap: 6px; }
+.account-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 10px 0 6px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: transparent;
+  font-weight: 600;
+  font-size: 13px;
+}
+.account-chip:hover { border-color: var(--line-2); background: var(--elev); }
+.avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+}
+.avatar.lg { width: 56px; height: 56px; margin-bottom: 8px; }
+.account-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  margin: 8px 0 16px;
+}
+.account-card strong { font-size: 16px; }
+.modal-lead code {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--lime);
+}
+a.btn { text-decoration: none; }
 
 .icon-btn {
   width: 36px;

@@ -8,6 +8,18 @@ export default defineConfig({
     strictPort: true,
     allowedHosts: true,
     proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:3001',
+        changeOrigin: true,
+        configure(proxy) {
+          proxy.on('proxyReq', (proxyReq, req) => {
+            const host = req.headers.host || ''
+            proxyReq.setHeader('x-forwarded-host', host)
+            const proto = req.headers['x-forwarded-proto'] || (/\.e2b\.app$/i.test(host.split(':')[0]) ? 'https' : 'http')
+            proxyReq.setHeader('x-forwarded-proto', proto)
+          })
+        },
+      },
       '/groq': {
         target: 'https://api.groq.com',
         changeOrigin: true,

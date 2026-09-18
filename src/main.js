@@ -19,6 +19,13 @@ import {
   isMissingModelError,
 } from './groq.js'
 import { startFx } from './fx.js'
+import {
+  apiStatus,
+  apiMe,
+  apiLogout,
+  apiGetProjects,
+  apiSaveProjects,
+} from './api.js'
 
 const EXAMPLES = [
   { t: 'Пекарня', p: 'Лендинг ремесленной пекарни «Два зерна» в Новосибирске: тёплый хлеб, витрина, предзаказ, история пекаря. Уютный редакционный стиль, кремовые тона, крупная типографика.' },
@@ -88,6 +95,8 @@ const ICONS = {
   home: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 11 12 4l8 7"/><path d="M6 10.5V20h12v-9.5"/></svg>`,
   save: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 5h11l3 3v11H5V5Z"/><path d="M8 5v5h8V5M8 19v-6h8v6"/></svg>`,
   upload: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 16V6m0 0 4.5 4.5M12 6 7.5 10.5M5 20h14"/></svg>`,
+  user: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="3.2"/><path d="M5 19.2c1.6-3 4-4.5 7-4.5s5.4 1.5 7 4.5"/></svg>`,
+  github: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.58 2 12.26c0 4.5 2.87 8.32 6.84 9.67.5.1.68-.22.68-.49 0-.24-.01-.87-.01-1.71-2.78.62-3.37-1.37-3.37-1.37-.45-1.18-1.11-1.5-1.11-1.5-.91-.64.07-.63.07-.63 1 .07 1.53 1.06 1.53 1.06.9 1.57 2.36 1.12 2.94.86.09-.66.35-1.12.63-1.37-2.22-.26-4.56-1.14-4.56-5.07 0-1.12.39-2.03 1.03-2.75-.1-.26-.45-1.3.1-2.7 0 0 .84-.27 2.75 1.05A9.3 9.3 0 0 1 12 6.84c.85 0 1.71.12 2.51.35 1.9-1.32 2.74-1.05 2.74-1.05.55 1.4.2 2.44.1 2.7.64.72 1.03 1.63 1.03 2.75 0 3.94-2.34 4.8-4.58 5.06.36.32.68.94.68 1.9 0 1.37-.01 2.47-.01 2.81 0 .27.18.6.69.49A10.03 10.03 0 0 0 22 12.26C22 6.58 17.52 2 12 2Z"/></svg>`,
 }
 
 const appEl = document.getElementById('app')
@@ -108,6 +117,11 @@ const state = {
   previewTimer: 0,
   saveTimer: 0,
   toastTimer: 0,
+  cloudTimer: 0,
+  user: null,
+  authOpen: false,
+  apiOnline: false,
+  githubReady: false,
 }
 
 function current() {
@@ -118,6 +132,14 @@ function persist() {
   saveProjects(state.projects)
   saveCurrentId(state.currentId)
   saveSettings(state.settings)
+  if (state.user) scheduleCloud()
+}
+
+function scheduleCloud() {
+  clearTimeout(state.cloudTimer)
+  state.cloudTimer = setTimeout(() => {
+    apiSaveProjects(state.projects).catch(() => {})
+  }, 450)
 }
 
 function touch(p) {
@@ -191,7 +213,7 @@ function saveToCatalog() {
   }
   touch(p)
   persist()
-  toast(`Сохранено в каталог: ${p.name}`)
+  toast(state.user ? `Сохранено в аккаунт: ${p.name}` : `Сохранено в каталог: ${p.name}`)
 }
 
 function openProject(id) {
@@ -788,6 +810,7 @@ appEl.addEventListener('click', (e) => {
     if (e.target.classList.contains('overlay')) {
       state.settingsOpen = false
       state.projectsOpen = false
+      state.authOpen = false
       render()
     }
     return
@@ -795,6 +818,18 @@ appEl.addEventListener('click', (e) => {
   const act = t.dataset.act
   if (act === 'settings') {
     state.settingsOpen = true
+    render()
+  } else if (act === 'auth') {
+    state.authOpen = true
+    render()
+  } else if (act === 'close-auth') {
+    state.authOpen = false
+    render()
+  } else if (act === 'logout') {
+    apiLogout().catch(() => {})
+    state.user = null
+    state.authOpen = false
+    toast('Вы вышли')
     render()
   } else if (act === 'close-settings') {
     state.settingsOpen = false
@@ -935,6 +970,29 @@ document.addEventListener('keydown', (e) => {
   }
 })
 
-saveSettings(state.settings)
-render()
-startFx()
+async function boot() {
+  saveSettings(state.settings)
+  const params = new URLSearchParams(location.search)
+  const authFlag = params.get('auth')
+  if (authFlag) history.replaceState({}, '', location.pathname)
+  try {
+    const st = await apiStatus()
+    state.apiOnline = !!st.ok
+    state.githubReady = !!st.github
+    const me = await apiMe()
+    if (me.user) {
+      state.user = me.user
+      const remote = await apiGetProjects()
+      if (remote.length) state.projects = remote
+      else if (state.projects.length) await apiSaveProjects(state.projects)
+    }
+  } catch {
+    state.apiOnline = false
+  }
+  render()
+  startFx()
+  if (authFlag === 'ok') toast('Вход через GitHub выполнен')
+  else if (authFlag === 'error') toast('Не удалось войти через GitHub', 'err')
+}
+
+boot()
