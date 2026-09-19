@@ -864,6 +864,32 @@ body.on-studio .holo { opacity: 0; pointer-events: none; }
   background: var(--bg);
 }
 
+.auth-tabs {
+  display: flex;
+  gap: 6px;
+  margin: 0 0 16px;
+  background: var(--elev);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 4px;
+}
+.auth-tabs button {
+  flex: 1;
+  height: 36px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 700;
+  font-size: 13px;
+}
+.auth-tabs button.on {
+  background: var(--lime);
+  color: #111;
+}
+.auth-form { margin: 0; }
+.auth-gh { margin-top: 12px; }
+
 @media (max-width: 900px) {
   .studio { grid-template-columns: 1fr; }
   .chat {
@@ -877,4 +903,73 @@ body.on-studio .holo { opacity: 0; pointer-events: none; }
   .view-split .resizer { display: none; }
   .welcome h1 { font-size: 40px; }
   .top-center { display: none; }
+}
+
+@media (max-width: 720px) {
+  .topbar {
+    height: 52px;
+    padding: 0 10px;
+    gap: 8px;
+  }
+  .brand-text { font-size: 16px; }
+  .top-actions { gap: 4px; }
+  .top-actions .btn span { display: none; }
+  .account-chip span {
+    max-width: 72px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .desk-only { display: none !important; }
+  .home-hero {
+    min-height: auto;
+    padding: 18px 14px 28px;
+  }
+  .home h1 { font-size: clamp(28px, 9vw, 40px); }
+  .lede { font-size: 15px; margin-bottom: 18px; }
+  .hero-glass::before { inset: -14px; border-radius: 22px; }
+  .welcome-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .welcome-actions .btn {
+    width: 100%;
+    justify-content: center;
+    min-height: 48px;
+  }
+  .welcome-form textarea,
+  .composer textarea,
+  .field input {
+    font-size: 16px;
+  }
+  .chips { gap: 6px; }
+  .chip { padding: 8px 10px; font-size: 12px; }
+  .catalog { padding: 0 14px 48px; }
+  .stage-bar {
+    height: auto;
+    flex-wrap: wrap;
+    padding: 8px 10px;
+    gap: 8px;
+  }
+  .devices { display: none; }
+  .seg button { padding: 0 8px; }
+  .overlay {
+    justify-content: stretch;
+    align-items: flex-end;
+  }
+  .modal, .drawer {
+    width: 100%;
+    height: auto;
+    max-height: 92%;
+    border-left: 0;
+    border-top: 1px solid var(--line);
+    border-radius: 18px 18px 0 0;
+  }
+  .toast {
+    left: 12px;
+    right: 12px;
+    transform: none;
+    text-align: center;
+  }
+  .toast.show { transform: none; }
 }
