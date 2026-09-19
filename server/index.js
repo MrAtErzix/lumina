@@ -84,6 +84,51 @@ app.get('/api/me', (req, res) => {
   res.json({ user: currentUser(req) })
 })
 
+function validEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || '').trim())
+}
+
+app.post('/api/auth/register', (req, res) => {
+  try {
+    const email = String(req.body?.email || '').trim().toLowerCase()
+    const password = String(req.body?.password || '')
+    const name = String(req.body?.name || '').trim().slice(0, 60)
+    if (!validEmail(email)) return res.status(400).json({ error: 'Некорректная почта' })
+    if (password.length < 8) return res.status(400).json({ error: 'Пароль от 8 символов' })
+    const passwordHash = bcrypt.hashSync(password, 10)
+    const user = registerEmailUser({ email, passwordHash, name })
+    const session = createSession(user.id)
+    res.cookie('lumina_sid', session.id, cookieOpts(req, { maxAge: 30 * 24 * 60 * 60 * 1000 }))
+    res.json({ user })
+  } catch (err) {
+    if (err.code === 'EMAIL_TAKEN' || /уже зарегистрирована/i.test(err.message)) {
+      return res.status(409).json({ error: 'Эта почта уже зарегистрирована' })
+    }
+    console.error(err)
+    res.status(500).json({ error: 'Не удалось зарегистрироваться' })
+  }
+})
+
+app.post('/api/auth/login', (req, res) => {
+  const email = String(req.body?.email || '').trim().toLowerCase()
+  const password = String(req.body?.password || '')
+  const row = findByEmail(email)
+  if (!row || !row.password_hash || !bcrypt.compareSync(password, row.password_hash)) {
+    return res.status(401).json({ error: 'Неверная почта или пароль' })
+  }
+  const user = {
+    id: row.id,
+    githubId: row.github_id,
+    login: row.login,
+    name: row.name || row.login,
+    email: row.email || '',
+    avatar: row.avatar || '',
+  }
+  const session = createSession(user.id)
+  res.cookie('lumina_sid', session.id, cookieOpts(req, { maxAge: 30 * 24 * 60 * 60 * 1000 }))
+  res.json({ user })
+})
+
 app.get('/api/auth/github', (req, res) => {
   if (!CLIENT_ID || !CLIENT_SECRET) {
     return res.status(503).json({

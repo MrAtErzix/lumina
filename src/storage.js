@@ -2,6 +2,19 @@ const SETTINGS_KEY = 'lumina.settings.v1'
 const PROJECTS_KEY = 'lumina.projects.v1'
 const CURRENT_KEY = 'lumina.current.v1'
 
+let projectsKey = PROJECTS_KEY
+let currentKey = CURRENT_KEY
+
+export function setUserScope(userId) {
+  if (userId) {
+    projectsKey = `${PROJECTS_KEY}.${userId}`
+    currentKey = `${CURRENT_KEY}.${userId}`
+  } else {
+    projectsKey = PROJECTS_KEY
+    currentKey = CURRENT_KEY
+  }
+}
+
 import { DEFAULT_MODEL, isDeadModel } from './groq.js'
 
 const defaultSettings = () => ({

@@ -14,11 +14,12 @@ db.pragma('foreign_keys = ON')
 db.exec(`
 CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  github_id INTEGER NOT NULL UNIQUE,
+  github_id INTEGER UNIQUE,
   login TEXT NOT NULL,
   name TEXT,
   email TEXT,
   avatar TEXT,
+  password_hash TEXT,
   created_at INTEGER NOT NULL
 );
 CREATE TABLE IF NOT EXISTS sessions (
@@ -42,6 +43,43 @@ CREATE TABLE IF NOT EXISTS projects (
 CREATE INDEX IF NOT EXISTS idx_projects_user ON projects(user_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
 `)
+
+function migrateUsers() {
+  const cols = db.prepare('PRAGMA table_info(users)').all()
+  const names = new Set(cols.map((c) => c.name))
+  if (!names.has('password_hash')) {
+    try {
+      db.exec('ALTER TABLE users ADD COLUMN password_hash TEXT')
+    } catch {
+      /* already */
+    }
+  }
+  const gh = cols.find((c) => c.name === 'github_id')
+  if (gh && gh.notnull) {
+    db.pragma('foreign_keys = OFF')
+    db.exec(`
+      CREATE TABLE users_v2 (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        github_id INTEGER UNIQUE,
+        login TEXT NOT NULL,
+        name TEXT,
+        email TEXT,
+        avatar TEXT,
+        password_hash TEXT,
+        created_at INTEGER NOT NULL
+      );
+      INSERT INTO users_v2 (id, github_id, login, name, email, avatar, password_hash, created_at)
+        SELECT id, github_id, login, name, email, avatar, NULL, created_at FROM users;
+      DROP TABLE users;
+      ALTER TABLE users_v2 RENAME TO users;
+    `)
+    db.pragma('foreign_keys = ON')
+  }
+  db.exec(
+    `CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email) WHERE email IS NOT NULL AND email != ''`,
+  )
+}
+migrateUsers()
 
 function publicUser(row) {
   if (!row) return null
@@ -83,14 +121,43 @@ export function upsertGithubUser({ githubId, login, name, email, avatar }) {
   const now = Date.now()
   const existing = db.prepare('SELECT * FROM users WHERE github_id = ?').get(githubId)
   if (existing) {
-    db.prepare(
-      'UPDATE users SET login = ?, name = ?, email = ?, avatar = ? WHERE id = ?',
-    ).run(login, name || login, email || '', avatar || '', existing.id)
+    db.prepare('UPDATE users SET login = ?, name = ?, email = ?, avatar = ? WHERE id = ?').run(
+      login,
+      name || login,
+      email || existing.email || '',
+      avatar || '',
+      existing.id,
+    )
     return publicUser(db.prepare('SELECT * FROM users WHERE id = ?').get(existing.id))
   }
-  const info = db.prepare(
-    'INSERT INTO users (github_id, login, name, email, avatar, created_at) VALUES (?, ?, ?, ?, ?, ?)',
-  ).run(githubId, login, name || login, email || '', avatar || '', now)
+  const info = db
+    .prepare(
+      'INSERT INTO users (github_id, login, name, email, avatar, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+    )
+    .run(githubId, login, name || login, email || '', avatar || '', now)
+  return publicUser(db.prepare('SELECT * FROM users WHERE id = ?').get(info.lastInsertRowid))
+}
+
+export function findByEmail(email) {
+  const emailNorm = String(email || '').trim().toLowerCase()
+  if (!emailNorm) return null
+  return db.prepare('SELECT * FROM users WHERE lower(email) = ?').get(emailNorm)
+}
+
+export function registerEmailUser({ email, passwordHash, name }) {
+  const emailNorm = String(email || '').trim().toLowerCase()
+  if (findByEmail(emailNorm)) {
+    const err = new Error('Эта почта уже зарегистрирована')
+    err.code = 'EMAIL_TAKEN'
+    throw err
+  }
+  const login = emailNorm.split('@')[0].slice(0, 32) || 'user'
+  const display = String(name || login).trim().slice(0, 60) || login
+  const info = db
+    .prepare(
+      'INSERT INTO users (github_id, login, name, email, avatar, password_hash, created_at) VALUES (NULL, ?, ?, ?, ?, ?, ?)',
+    )
+    .run(login, display, emailNorm, '', passwordHash, Date.now())
   return publicUser(db.prepare('SELECT * FROM users WHERE id = ?').get(info.lastInsertRowid))
 }
 

@@ -1,24 +1,31 @@
 async function req(path, opts = {}) {
-  const res = await fetch(path, {
-    credentials: 'include',
-    headers: {
-      ...(opts.body ? { 'content-type': 'application/json' } : {}),
-      ...(opts.headers || {}),
-    },
-    ...opts,
-    body: opts.body && typeof opts.body !== 'string' ? JSON.stringify(opts.body) : opts.body,
-  })
-  const data = await res.json().catch(() => ({}))
-  if (!res.ok) {
-    const err = new Error(data.error || 'Ошибка API')
-    err.status = res.status
-    throw err
+  const ctrl = new AbortController()
+  const t = setTimeout(() => ctrl.abort(), opts.timeout || 4000)
+  try {
+    const res = await fetch(path, {
+      credentials: 'include',
+      headers: {
+        ...(opts.body ? { 'content-type': 'application/json' } : {}),
+        ...(opts.headers || {}),
+      },
+      ...opts,
+      signal: opts.signal || ctrl.signal,
+      body: opts.body && typeof opts.body !== 'string' ? JSON.stringify(opts.body) : opts.body,
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      const err = new Error(data.error || 'Ошибка API')
+      err.status = res.status
+      throw err
+    }
+    return data
+  } finally {
+    clearTimeout(t)
   }
-  return data
 }
 
 export async function apiStatus() {
-  return req('/api/status')
+  return req('/api/status', { timeout: 2500 })
 }
 
 export async function apiMe() {
@@ -27,6 +34,14 @@ export async function apiMe() {
 
 export async function apiLogout() {
   return req('/api/auth/logout', { method: 'POST' })
+}
+
+export async function apiRegister(body) {
+  return req('/api/auth/register', { method: 'POST', body })
+}
+
+export async function apiLogin(body) {
+  return req('/api/auth/login', { method: 'POST', body })
 }
 
 export async function apiGetProjects() {

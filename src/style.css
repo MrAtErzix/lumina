@@ -32,7 +32,7 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 button, input, textarea, select { font-family: inherit; color: inherit; }
-button { cursor: pointer; }
+button { cursor: pointer; touch-action: manipulation; }
 img { max-width: 100%; }
 
 .grain {
@@ -689,7 +689,7 @@ body.resizing iframe { pointer-events: none; }
   height: 180px;
   margin: -90px 0 0 -90px;
   transform-style: preserve-3d;
-  pointer-events: auto;
+  pointer-events: none;
   cursor: grab;
   will-change: transform;
 }
@@ -736,7 +736,7 @@ body.on-studio .holo { opacity: 0; pointer-events: none; }
 .trail-canvas {
   position: fixed;
   inset: 0;
-  z-index: 4;
+  z-index: 1;
   pointer-events: none;
 }
 

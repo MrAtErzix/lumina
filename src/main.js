@@ -6,6 +6,7 @@ import {
   loadCurrentId,
   saveCurrentId,
   createProject,
+  setUserScope,
 } from './storage.js'
 import {
   MODELS,
@@ -25,7 +26,14 @@ import {
   apiLogout,
   apiGetProjects,
   apiSaveProjects,
+  apiRegister,
+  apiLogin,
 } from './api.js'
+import { getLocalSession, clearLocalSession, localRegister, localLogin } from './localAuth.js'
+
+function isMobile() {
+  return typeof window !== 'undefined' && window.matchMedia('(max-width: 720px)').matches
+}
 
 const EXAMPLES = [
   { t: 'Пекарня', p: 'Лендинг ремесленной пекарни «Два зерна» в Новосибирске: тёплый хлеб, витрина, предзаказ, история пекаря. Уютный редакционный стиль, кремовые тона, крупная типографика.' },
@@ -120,6 +128,8 @@ const state = {
   cloudTimer: 0,
   user: null,
   authOpen: false,
+  authTab: 'login',
+  authBusy: false,
   apiOnline: false,
   githubReady: false,
 }
@@ -132,7 +142,51 @@ function persist() {
   saveProjects(state.projects)
   saveCurrentId(state.currentId)
   saveSettings(state.settings)
-  if (state.user) scheduleCloud()
+  if (state.user && !state.user.local) scheduleCloud()
+}
+
+function adoptUser(user, { projects } = {}) {
+  state.user = user
+  setUserScope(user?.id)
+  if (projects) state.projects = projects
+  else state.projects = loadProjects()
+  state.currentId = loadCurrentId()
+}
+
+async function submitAuth(kind) {
+  if (state.authBusy) return
+  const email = document.getElementById('auth-email')?.value || ''
+  const password = document.getElementById('auth-password')?.value || ''
+  const name = document.getElementById('auth-name')?.value || ''
+  state.authBusy = true
+  render()
+  try {
+    let user
+    if (state.apiOnline) {
+      const data = kind === 'register'
+        ? await apiRegister({ email, password, name })
+        : await apiLogin({ email, password })
+      user = data.user
+      let remote = []
+      try { remote = await apiGetProjects() } catch {}
+      adoptUser(user, { projects: remote.length ? remote : loadProjects() })
+      if (!remote.length && state.projects.length) await apiSaveProjects(state.projects)
+    } else {
+      user = kind === 'register'
+        ? await localRegister({ email, password, name })
+        : await localLogin({ email, password })
+      adoptUser(user)
+    }
+    state.authOpen = false
+    state.authBusy = false
+    persist()
+    render()
+    toast(kind === 'register' ? 'Аккаунт создан' : 'Вы вошли')
+  } catch (err) {
+    state.authBusy = false
+    render()
+    toast(err.message || 'Не удалось войти', 'err')
+  }
 }
 
 function scheduleCloud() {
@@ -372,7 +426,11 @@ function needsKey() {
 
 async function sendPrompt(text, { fromWelcome = false } = {}) {
   const prompt = (text || '').trim()
-  if (!prompt) return
+  if (!prompt) {
+    toast('Опишите сайт в поле выше', 'warn')
+    document.getElementById('welcome-input')?.focus()
+    return
+  }
   if (needsKey()) {
     state.settingsOpen = true
     render()
@@ -491,17 +549,87 @@ function shell() {
         ` : `
           <button class="btn primary" data-act="save">${icon('save')}<span>Сохранить</span></button>
           <button class="btn ghost" data-act="home">${icon('home')}<span>На главную</span></button>
-          <button class="icon-btn" data-act="undo" title="Откатить">${icon('undo')}</button>
-          <button class="icon-btn" data-act="copy" title="Копировать код">${icon('copy')}</button>
-          <button class="icon-btn" data-act="open" title="Открыть в новой вкладке">${icon('external')}</button>
-          <button class="btn ghost" data-act="download">${icon('download')}<span>Экспорт</span></button>
+          <button class="icon-btn desk-only" data-act="undo" title="Откатить">${icon('undo')}</button>
+          <button class="icon-btn desk-only" data-act="copy" title="Копировать код">${icon('copy')}</button>
+          <button class="icon-btn desk-only" data-act="open" title="Открыть в новой вкладке">${icon('external')}</button>
+          <button class="btn ghost desk-only" data-act="download">${icon('download')}<span>Экспорт</span></button>
         `}
+        ${accountButton()}
         <button class="icon-btn ${needsKey() ? 'warn-dot' : ''}" data-act="settings" title="Настройки">${icon('gear')}</button>
       </div>
     </header>
 
     ${onHome ? homeView() : studioView()}
     ${state.settingsOpen ? settingsModal() : ''}
+    ${state.authOpen ? authModal() : ''}
+  `
+}
+
+function accountButton() {
+  if (state.user) {
+    const label = escapeHtml(state.user.login || state.user.name || 'аккаунт')
+    const av = state.user.avatar
+      ? `<img class="avatar" src="${escapeHtml(state.user.avatar)}" alt="" />`
+      : icon('user')
+    return `<button class="account-chip" data-act="auth" title="${label}">${av}<span>${label}</span></button>`
+  }
+  return `<button class="btn ghost" data-act="auth">${icon('user')}<span>Войти</span></button>`
+}
+
+function authModal() {
+  const u = state.user
+  if (u) {
+    return `
+      <div class="overlay" data-close="auth">
+        <div class="modal" role="dialog" aria-labelledby="auth-title">
+          <div class="modal-head">
+            <h2 id="auth-title">${icon('user')} Аккаунт</h2>
+            <button class="icon-btn" data-act="close-auth">${icon('x')}</button>
+          </div>
+          <div class="account-card">
+            ${u.avatar ? `<img class="avatar lg" src="${escapeHtml(u.avatar)}" alt="" />` : ''}
+            <strong>${escapeHtml(u.name || u.login)}</strong>
+            <span class="muted">${u.email ? escapeHtml(u.email) : '@' + escapeHtml(u.login)}</span>
+          </div>
+          <p class="modal-lead">${u.local ? 'Аккаунт сохранён в этом браузере.' : 'Проекты синхронизируются с сервером.'}</p>
+          <div class="modal-actions">
+            <button class="btn ghost" type="button" data-act="logout">Выйти</button>
+          </div>
+        </div>
+      </div>
+    `
+  }
+  const tab = state.authTab === 'register' ? 'register' : 'login'
+  const busy = state.authBusy ? 'disabled' : ''
+  return `
+    <div class="overlay" data-close="auth">
+      <div class="modal" role="dialog" aria-labelledby="auth-title">
+        <div class="modal-head">
+          <h2 id="auth-title">${icon('user')} ${tab === 'register' ? 'Регистрация' : 'Вход'}</h2>
+          <button class="icon-btn" data-act="close-auth">${icon('x')}</button>
+        </div>
+        <div class="auth-tabs">
+          <button type="button" class="${tab === 'login' ? 'on' : ''}" data-act="auth-tab-login">Вход</button>
+          <button type="button" class="${tab === 'register' ? 'on' : ''}" data-act="auth-tab-register">Регистрация</button>
+        </div>
+        <form id="${tab === 'register' ? 'auth-register' : 'auth-login'}" class="auth-form">
+          ${tab === 'register' ? `<label class="field"><span>Имя</span><input id="auth-name" autocomplete="name" placeholder="Как к вам обращаться" /></label>` : ''}
+          <label class="field">
+            <span>Почта</span>
+            <input id="auth-email" type="email" autocomplete="email" required placeholder="you@mail.com" />
+          </label>
+          <label class="field">
+            <span>Пароль</span>
+            <input id="auth-password" type="password" autocomplete="${tab === 'register' ? 'new-password' : 'current-password'}" required minlength="8" placeholder="минимум 8 символов" />
+          </label>
+          <div class="modal-actions">
+            <button class="btn primary wide" type="submit" ${busy}>${tab === 'register' ? 'Создать аккаунт' : 'Войти'}</button>
+          </div>
+        </form>
+        ${state.githubReady ? `<a class="btn ghost wide auth-gh" href="/api/auth/github">${icon('github')} Войти через GitHub</a>` : ''}
+        ${!state.apiOnline ? `<p class="modal-lead">На GitHub Pages аккаунт хранится в этом браузере.</p>` : ''}
+      </div>
+    </div>
   `
 }
 
@@ -519,7 +647,7 @@ function homeView() {
             <textarea id="welcome-input" rows="3" placeholder="Например: лендинг кофейни на ОбьГЭС, тёмное дерево, меню, запись на каппинг…"></textarea>
             <div class="welcome-actions">
               <button class="btn ghost big" type="button" data-act="blank">${icon('code')} Писать самому</button>
-              <button class="btn primary big" type="submit">${icon('spark')} Создать с ИИ</button>
+              <button class="btn primary big" type="button" data-act="create-ai">${icon('spark')} Создать с ИИ</button>
             </div>
           </form>
           <div class="chips">
@@ -786,7 +914,7 @@ function afterRender() {
   const chat = document.getElementById('chat-input')
   const welcome = document.getElementById('welcome-input')
   chat?.addEventListener('input', () => autosize(chat))
-  welcome?.focus()
+  if (welcome && !isMobile()) welcome.focus()
   const file = document.getElementById('import-file')
   file?.addEventListener('change', (e) => {
     const f = e.target.files && e.target.files[0]
@@ -827,10 +955,23 @@ appEl.addEventListener('click', (e) => {
     render()
   } else if (act === 'logout') {
     apiLogout().catch(() => {})
+    clearLocalSession()
+    persist()
     state.user = null
+    setUserScope(null)
+    state.projects = loadProjects()
+    state.currentId = loadCurrentId()
     state.authOpen = false
     toast('Вы вышли')
     render()
+  } else if (act === 'auth-tab-login') {
+    state.authTab = 'login'
+    render()
+  } else if (act === 'auth-tab-register') {
+    state.authTab = 'register'
+    render()
+  } else if (act === 'create-ai') {
+    sendPrompt(document.getElementById('welcome-input')?.value, { fromWelcome: true })
   } else if (act === 'close-settings') {
     state.settingsOpen = false
     render()
@@ -906,6 +1047,14 @@ appEl.addEventListener('submit', (e) => {
     e.preventDefault()
     sendPrompt(document.getElementById('chat-input').value)
   }
+  if (e.target.id === 'auth-login') {
+    e.preventDefault()
+    submitAuth('login')
+  }
+  if (e.target.id === 'auth-register') {
+    e.preventDefault()
+    submitAuth('register')
+  }
 })
 
 appEl.addEventListener('keydown', (e) => {
@@ -972,6 +1121,14 @@ document.addEventListener('keydown', (e) => {
 
 async function boot() {
   saveSettings(state.settings)
+  if (isMobile()) {
+    state.chatOpen = false
+    state.view = 'preview'
+  }
+  const local = getLocalSession()
+  if (local) adoptUser(local)
+  render()
+  startFx()
   const params = new URLSearchParams(location.search)
   const authFlag = params.get('auth')
   if (authFlag) history.replaceState({}, '', location.pathname)
@@ -981,18 +1138,17 @@ async function boot() {
     state.githubReady = !!st.github
     const me = await apiMe()
     if (me.user) {
-      state.user = me.user
-      const remote = await apiGetProjects()
-      if (remote.length) state.projects = remote
-      else if (state.projects.length) await apiSaveProjects(state.projects)
+      let remote = []
+      try { remote = await apiGetProjects() } catch {}
+      adoptUser(me.user, { projects: remote.length ? remote : loadProjects() })
+      if (!remote.length && state.projects.length) await apiSaveProjects(state.projects)
+      render()
     }
   } catch {
     state.apiOnline = false
   }
-  render()
-  startFx()
-  if (authFlag === 'ok') toast('Вход через GitHub выполнен')
-  else if (authFlag === 'error') toast('Не удалось войти через GitHub', 'err')
+  if (authFlag === 'ok') toast('Вход выполнен')
+  else if (authFlag === 'error') toast('Не удалось войти', 'err')
 }
 
 boot()

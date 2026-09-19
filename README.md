@@ -40,7 +40,7 @@ npm run build
 npm start
 ```
 
-Войдите кнопкой **Войти** → GitHub. Проекты пишутся в SQLite `data/lumina.db` и привязаны к GitHub id. Ключ Groq по-прежнему только в браузере.
+Войдите по **почте и паролю** (или через GitHub, если OAuth настроен). На GitHub Pages аккаунт хранится в браузере; при `npm start` — в SQLite `data/lumina.db`. Ключ Groq по-прежнему только в браузере.
 
 ## Стек
 
