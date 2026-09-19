@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Lumina — студия сайтов с ИИ</title>
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <link rel="icon" href="/lumina/favicon.svg" type="image/svg+xml" />
+    <script>
+      (function () {
+        var dead = {
+          'llama-3.3-70b-versatile': 1,
+          'llama-3.1-8b-instant': 1,
+          'llama3-70b-8192': 1,
+          'llama3-8b-8192': 1,
+          'qwen/qwen3-32b': 1,
+          'moonshotai/kimi-k2-instruct-0905': 1,
+          'moonshotai/kimi-k2-instruct': 1,
+          'meta-llama/llama-4-scout-17b-16e-instruct': 1,
+          'meta-llama/llama-4-maverick-17b-128e-instruct': 1,
+        }
+        try {
+          var key = 'lumina.settings.v1'
+          var s = JSON.parse(localStorage.getItem(key) || '{}')
+          var changed = false
+          if (!s.model || dead[s.model]) {
+            s.model = 'openai/gpt-oss-120b'
+            changed = true
+          }
+          if (s.customModel && dead[s.customModel]) {
+            s.customModel = ''
+            changed = true
+          }
+          if (changed) localStorage.setItem(key, JSON.stringify(s))
+        } catch (e) {}
+      })()
+    </script>
+    <link rel="preconnect" href="https://fonts.bunny.net" />
+    <link
+      href="https://fonts.bunny.net/css?family=syne:700,800|manrope:400,500,600,700|jetbrains-mono:400,500"
+      rel="stylesheet"
+    />
+    <script type="module" crossorigin src="/lumina/assets/index-B4iizCRs.js"></script>
+    <link rel="stylesheet" crossorigin href="/lumina/assets/index-BoJOHSU5.css">
+  </head>
+  <body>
+    <div class="holo" aria-hidden="true">
+      <div class="holo-fog"></div>
+      <div class="holo-wrap">
+        <div class="holo-box">
+          <span class="hf hf-front"></span>
+          <span class="hf hf-back"></span>
+          <span class="hf hf-right"></span>
+          <span class="hf hf-left"></span>
+          <span class="hf hf-top"></span>
+          <span class="hf hf-bottom"></span>
+        </div>
+      </div>
+    </div>
+    <div class="grain" aria-hidden="true"></div>
+    <div id="app"></div>
+  </body>
+</html>
